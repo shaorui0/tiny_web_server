@@ -3,7 +3,9 @@ import typing
 from collections import defaultdict
 
 class Headers:
-    # dict(1:n)
+    """
+    Save HTTP request header(s) as a dictionary that k-v partition by ':'
+    """
     def __init__(self):
         self._headers = defaultdict(list)
     

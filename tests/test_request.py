@@ -1,7 +1,3 @@
-# 测一下iter_lines
-# 测一下body reader
-# 测一下request
-
 from io import BytesIO
 from textwrap import dedent
 
@@ -9,8 +5,10 @@ import unittest
 
 from app.request import Request
 
-# mock a socket
 class StubSocket:
+    """
+    mock a socket
+    """
     # push data to socket for testing
     def __init__(self, data: str):
         # byte stream
