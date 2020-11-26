@@ -3,11 +3,13 @@ import io
 import socket
 import typing
 import mimetypes
+
+from queue import Queue, Empty
+from threading import Thread
+
 from request import Request
 from response import Response
 
-HOST = "127.0.0.1"
-PORT = 9000
 SERVER_ROOT = 'www'
 
 
@@ -40,27 +42,65 @@ def server_static(sock, path):
         return
 
 class HTTPServer:
-    def __init__(self, host="127.0.0.1", port=9000):
+    def __init__(self, host="127.0.0.1", port=9000, worker_count=16):
         self.host = host
         self.port = port
+        self.worker_count = worker_count
+        self.worker_backlog = worker_count * 8
+        self.connection_queue = Queue(self.worker_backlog)
     
     def server_forever(self):
+        workers = []
+        for _ in range(self.worker_count):
+            worker = HTTPWorker()
+            worker.start()
+            workers.append(worker)
+
         with socket.socket() as server_sock:
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_sock.bind((self.host, self.port))
             server_sock.listen(0)
             print(f"Listening on {self.host}:{self.port}...")
             while True:
-                client_sock, client_addr = server_sock.accept()
-                print(client_sock, client_addr)
+                try:
+                    self.connection_queue.put(server_sock.accept())
+                except KeyboardInterrupt:
+                    break
 
+        for worker in workers:
+            worker.stop()
+
+        for worker in workers:
+            worker.join(timeout=30)
+
+
+class HTTPWorker(Thread):
+    def __init__(self, connection_queue):
+        self.connection_queue = connection_queue
+        self.running = False
+
+    def run(self):
+        self.running = True
+        while self.running:
+            try:
+                client_sock, client_addr = self.connection_queue.get(timeout=1) 
+            except Empty:
+                continue
+            
+            try:
                 self._handle_client(client_sock, client_addr)
+            except Exception as e:
+                print(f"Unhandled error: {e}")
+                continue
+            finally:
+                self.connection_queue.task_done()
 
     def _handle_client(self, client_sock, client_addr):
         with client_sock:
-            try: # Try not to crash the server
+            try:
                 request = Request.from_socket(client_sock)
-                print(request.headers._headers)
+                # TODO 100 continue
+
                 try:
                     content_length = int(request.headers.get("content-length", "0"))
                 except ValueError:
