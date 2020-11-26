@@ -4,7 +4,7 @@ import typing
 
 from collections import defaultdict
 
-from .headers import Headers
+from headers import Headers
 
 class BodyReader(io.IOBase):
     """
@@ -31,7 +31,13 @@ class BodyReader(io.IOBase):
 
 class Request(typing.NamedTuple):
     """
-    Keep method, path, header(s) and body that parsed by HTTP request content
+    An HTTP request.
+
+    Parameters:
+      method: The request method line (eg. "GET").
+      path: The request path.
+      headers: A string representing the request body.
+      body: A BodyReader reading content from socket.
     """
     method: str
     path: str
@@ -60,11 +66,11 @@ class Request(typing.NamedTuple):
                 # StopIteration.value contains the return value of the generator.
                 buff = e.value
                 break
-        
-            try:
-                name, value = line.decode("ascii").split(":")
-                headers.add(name, value.lstrip())
-            except ValueError:
+
+            name, sep, value = line.decode("ascii").partition(":")
+            headers.add(name, value.lstrip())
+            if not sep and not value:
+                # wrong format
                 raise ValueError(f"Malformed header line {line!r}.")
         
         body = BodyReader(sock, buff=buff)

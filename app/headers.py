@@ -20,3 +20,8 @@ class Headers:
             return self.get_all(name)[-1]
         except IndexError:
             return default
+
+    def __iter__(self):
+        for k, v in self._headers.items():
+            for item in v:
+                yield k, item

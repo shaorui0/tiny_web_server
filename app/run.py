@@ -3,44 +3,13 @@ import io
 import socket
 import typing
 import mimetypes
-
+from request import Request
+from response import Response
 
 HOST = "127.0.0.1"
 PORT = 9000
 SERVER_ROOT = 'www'
 
-# request status code
-# 200
-FILE_RESPONSE_TEMPLATE = """\
-HTTP/1.1 200 OK
-Content-type: {content_type}
-Content-length: {content_length}
-
-""".replace("\n", "\r\n")
-
-# 400
-BAD_REQUEST_RESPONSE = b"""\
-HTTP/1.1 400 Bad Request
-Content-type: text/plain
-Content-length: 11
-
-Bad Request""".replace(b"\n", b"\r\n")
-
-# 404, cannot find index file
-NOT_FOUND_RESPONSE = b"""\
-HTTP/1.1 404 Not Found
-Content-type: text/plain
-Content-length: 9
-
-Not Found""".replace(b"\n", b"\r\n")
-
-# 405, Method Not Allowed
-METHOD_NOT_ALLOWED_RESPONSE = b"""\
-HTTP/1.1 405 Method Not Allowed
-Content-type: text/plain
-Content-length: 17
-
-Method Not Allowed""".replace(b"\n", b"\r\n")
 
 def server_static(path, sock):
     if path == '/':
@@ -48,7 +17,9 @@ def server_static(path, sock):
 
     abspath = os.path.normpath(os.path.join(SERVER_ROOT, path.lstrip("/")))
     if not abspath.startswith(SERVER_ROOT):
-        sock.sendall(NOT_FOUND_RESPONSE)
+        # sock.sendall(NOT_FOUND_RESPONSE)
+        response = Response("404 Not Found", content="Not Found")
+        response.send(client_sock)
         return
         
     try:
@@ -61,15 +32,23 @@ def server_static(path, sock):
             if encoding is not None:
                 content_type += f"; charset={encoding}"
 
-            response_headers = FILE_RESPONSE_TEMPLATE.format(
-                content_type=content_type,
-                content_length=stat.st_size,
-            ).encode("ascii")
+            # response_headers = FILE_RESPONSE_TEMPLATE.format(
+            #     content_type=content_type,
+            #     content_length=stat.st_size,
+            # ).encode("ascii")
+            
+            response = Response("200 OK", body=f) # 服务器发送什么内容到客户端
+            response.headers.add("content-type", content_type)
+            # TODO content_length
+            response.send(client_sock)
 
-            sock.sendall(response_headers)
-            sock.sendfile(f)
+
+            # sock.sendall(response_headers)
+            # sock.sendfile(f)
     except FileNotFoundError:
-        sock.sendall(NOT_FOUND_RESPONSE)
+        # sock.sendall(NOT_FOUND_RESPONSE)
+        response = Response("404 Not Found", content="Not Found")
+        response.send(client_sock)
         return
 
 with socket.socket() as server_sock:
@@ -84,7 +63,6 @@ with socket.socket() as server_sock:
             try: # Try not to crash the server
                 request = Request.from_socket(client_sock)
                 try:
-                    print(request.headers._headers, request.headers.get("content-length", "0"))
                     content_length = int(request.headers.get("content-length", "0"))
                 except ValueError:
                     content_length = 0
@@ -94,10 +72,14 @@ with socket.socket() as server_sock:
                     print("Request body", body)
 
                 if request.method != "GET":
-                    client_sock.sendall(METHOD_NOT_ALLOWED_RESPONSE)
+                    # client_sock.sendall(METHOD_NOT_ALLOWED_RESPONSE)
+                    response = Response("405 Method Not Allowed", content="Method Not Allowed")
+                    response.send(client_sock)
                     continue
                 
                 server_static(request.path, client_sock)
             except Exception as e:
                 print(f"Failed to parse request: {e}")
-                client_sock.sendall(BAD_REQUEST_RESPONSE)
+                # client_sock.sendall(BAD_REQUEST_RESPONSE)
+                response = Response("400 Bad Request", content="Bad Request")
+                response.send(client_sock)
