@@ -11,15 +11,14 @@ PORT = 9000
 SERVER_ROOT = 'www'
 
 
-def server_static(path, sock):
+def server_static(sock, path):
     if path == '/':
         path = '/index.html'
 
     abspath = os.path.normpath(os.path.join(SERVER_ROOT, path.lstrip("/")))
     if not abspath.startswith(SERVER_ROOT):
-        # sock.sendall(NOT_FOUND_RESPONSE)
         response = Response("404 Not Found", content="Not Found")
-        response.send(client_sock)
+        response.send(sock)
         return
         
     try:
@@ -32,36 +31,36 @@ def server_static(path, sock):
             if encoding is not None:
                 content_type += f"; charset={encoding}"
 
-            # response_headers = FILE_RESPONSE_TEMPLATE.format(
-            #     content_type=content_type,
-            #     content_length=stat.st_size,
-            # ).encode("ascii")
-            
-            response = Response("200 OK", body=f) # 服务器发送什么内容到客户端
+            response = Response("200 OK", body=f)
             response.headers.add("content-type", content_type)
-            # TODO content_length
-            response.send(client_sock)
-
-
-            # sock.sendall(response_headers)
-            # sock.sendfile(f)
+            response.send(sock)
     except FileNotFoundError:
-        # sock.sendall(NOT_FOUND_RESPONSE)
         response = Response("404 Not Found", content="Not Found")
-        response.send(client_sock)
+        response.send(sock)
         return
 
-with socket.socket() as server_sock:
-    server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_sock.bind((HOST, PORT))
-    server_sock.listen(0)
-    print(f"Listening on {HOST}:{PORT}...")
-    while True:
-        client_sock, client_addr = server_sock.accept()
-        print(f"New connection from {client_addr}.")
+class HTTPServer:
+    def __init__(self, host="127.0.0.1", port=9000):
+        self.host = host
+        self.port = port
+    
+    def server_forever(self):
+        with socket.socket() as server_sock:
+            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_sock.bind((self.host, self.port))
+            server_sock.listen(0)
+            print(f"Listening on {self.host}:{self.port}...")
+            while True:
+                client_sock, client_addr = server_sock.accept()
+                print(client_sock, client_addr)
+
+                self._handle_client(client_sock, client_addr)
+
+    def _handle_client(self, client_sock, client_addr):
         with client_sock:
             try: # Try not to crash the server
                 request = Request.from_socket(client_sock)
+                print(request.headers._headers)
                 try:
                     content_length = int(request.headers.get("content-length", "0"))
                 except ValueError:
@@ -72,14 +71,15 @@ with socket.socket() as server_sock:
                     print("Request body", body)
 
                 if request.method != "GET":
-                    # client_sock.sendall(METHOD_NOT_ALLOWED_RESPONSE)
                     response = Response("405 Method Not Allowed", content="Method Not Allowed")
                     response.send(client_sock)
-                    continue
+                    return
                 
-                server_static(request.path, client_sock)
+                server_static(client_sock, request.path)
             except Exception as e:
                 print(f"Failed to parse request: {e}")
-                # client_sock.sendall(BAD_REQUEST_RESPONSE)
                 response = Response("400 Bad Request", content="Bad Request")
                 response.send(client_sock)
+
+server = HTTPServer()
+server.server_forever()
