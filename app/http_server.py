@@ -5,7 +5,7 @@ import typing
 import mimetypes
 
 from queue import Queue, Empty
-from threading import Thread
+import threading
 
 from request import Request
 from response import Response
@@ -41,41 +41,9 @@ def server_static(sock, path):
         response.send(sock)
         return
 
-class HTTPServer:
-    def __init__(self, host="127.0.0.1", port=9000, worker_count=16):
-        self.host = host
-        self.port = port
-        self.worker_count = worker_count
-        self.worker_backlog = worker_count * 8
-        self.connection_queue = Queue(self.worker_backlog)
-    
-    def server_forever(self):
-        workers = []
-        for _ in range(self.worker_count):
-            worker = HTTPWorker()
-            worker.start()
-            workers.append(worker)
-
-        with socket.socket() as server_sock:
-            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_sock.bind((self.host, self.port))
-            server_sock.listen(0)
-            print(f"Listening on {self.host}:{self.port}...")
-            while True:
-                try:
-                    self.connection_queue.put(server_sock.accept())
-                except KeyboardInterrupt:
-                    break
-
-        for worker in workers:
-            worker.stop()
-
-        for worker in workers:
-            worker.join(timeout=30)
-
-
-class HTTPWorker(Thread):
+class HTTPWorker(threading.Thread):
     def __init__(self, connection_queue):
+        super().__init__(daemon=True)
         self.connection_queue = connection_queue
         self.running = False
 
@@ -83,11 +51,13 @@ class HTTPWorker(Thread):
         self.running = True
         while self.running:
             try:
-                client_sock, client_addr = self.connection_queue.get(timeout=1) 
+                client_sock, client_addr = self.connection_queue.get(timeout=1)
+                # 打印一下信息，当前线程号，线程状态（只有一种），socket信息，client地址
             except Empty:
                 continue
             
             try:
+                print(threading.get_ident(), client_sock, client_addr)
                 self._handle_client(client_sock, client_addr)
             except Exception as e:
                 print(f"Unhandled error: {e}")
@@ -120,6 +90,39 @@ class HTTPWorker(Thread):
                 print(f"Failed to parse request: {e}")
                 response = Response("400 Bad Request", content="Bad Request")
                 response.send(client_sock)
+
+class HTTPServer:
+    def __init__(self, host="127.0.0.1", port=9000, worker_count=16):
+        self.host = host
+        self.port = port
+        self.worker_count = worker_count
+        self.worker_backlog = worker_count * 8
+        self.connection_queue = Queue(self.worker_backlog)
+    
+    def server_forever(self):
+        workers = []
+        for _ in range(self.worker_count):
+            worker = HTTPWorker(self.connection_queue)
+            worker.start()
+            workers.append(worker)
+
+        with socket.socket() as server_sock:
+            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_sock.bind((self.host, self.port))
+            server_sock.listen(0)
+            print(f"Listening on {self.host}:{self.port}...")
+            while True:
+                try:
+                    self.connection_queue.put(server_sock.accept())
+                except KeyboardInterrupt:
+                    break
+
+        for worker in workers:
+            worker.stop()
+
+        for worker in workers:
+            worker.join(timeout=30)
+
 
 server = HTTPServer()
 server.server_forever()
