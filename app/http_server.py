@@ -167,8 +167,16 @@ def app(request: Request):
     """
     return Response(status="200 OK", content="Hello!")
 
+def wrap_auth(handler):
+    def auth_handler(request):
+        authorization = request.headers.get("authorization", "")
+        if authorization.startswith("Bearer ") and authorization[len("Bearer "):] == "opensesame":
+            return handler(request)
+        return Response(status="403 Forbidden", content="Forbidden!")
+    return auth_handler
+
 server = HTTPServer()
-server.mount("/test", app)
+server.mount("/test", wrap_auth(app))
 server.mount("/static", serve_static('www')) # 不能直接注册，或者说，我希望能够将'www'传进去
 server.server_forever()
 
