@@ -46,8 +46,22 @@ class Request(typing.NamedTuple):
 
     @classmethod
     def from_socket(cls, sock):
+        """[Generate a http request from client socket]
+
+        Args:
+            sock ([socket.socket]): [a socket will be read]
+
+        Raises:
+            ValueError: [There is no http header]
+            ValueError: [There is no eligible content about http header]
+            ValueError: [The http body cannot be partition by ':']
+
+        Returns:
+            [Request]: [HTTP request(method, path, headers, body)]
+        """
         lines = iter_lines(sock)
         try:
+            # request head(method, path, http version)
             request_line = next(lines).decode('ascii')
         except StopIteration:
             raise ValueError("Request line error.")
@@ -76,9 +90,9 @@ class Request(typing.NamedTuple):
         body = BodyReader(sock, buff=buff)
         return cls(method=method.upper(), path=path, headers=headers, body=body)
 
-def iter_lines(sock: socket.socket, bufsize: int = 16_384) -> typing.Generator[bytes, None, bytes]:
+def iter_lines(sock: socket.socket, bufsize: int = 16_384):
     """
-    Iterate the content recieved by socket, partition by CRLF('\r\n')
+    Iterate the content recieved by socket, partition by CRLF('\\r\\n')
     
     Parameters:
         socket: a socket will be read 
