@@ -10,9 +10,6 @@ import threading
 from request import Request
 from response import Response
 
-SERVER_ROOT = 'www'
-
-
 def serve_static(server_root):
     """[summary]
 
