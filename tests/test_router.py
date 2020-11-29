@@ -9,16 +9,19 @@ class RouterTesting(unittest.TestCase):
             return Response()
         
         router.add_router("get_example", "GET", "/example", get_example)
+        
+        # learn functools.partial
         print(router.lookup("GET", "/example"))
         print(router.lookup("GET", "/example").func)
         print(router.lookup("GET", "/example").args)
         print(router.lookup("GET", "/example").keywords)
+        
         self.assertEqual(router.lookup("GET", "/example").func is get_example, True)
         self.assertEqual(router.lookup("GET", "/missing") is None, True)
         
     def test_router_can_add_routes_with_dynamic_segments(self):
         router = Router()
-        # And a route handler
+
         def get_example(name):
             return name
 
@@ -27,7 +30,7 @@ class RouterTesting(unittest.TestCase):
         handler = router.lookup("GET", "/users/Jim")
         self.assertEqual(handler.func is get_example, True)
         
-        print(handler) # function like closure + args
+        print(handler) # function like [closure + args]
         self.assertEqual(handler(), 'Jim')
     
     def test_router_fails_to_add_routes_with_duplicate_names(self):
