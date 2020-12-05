@@ -52,10 +52,13 @@ class Response:
         headers = b"HTTP/1.1 " + self.status + b"\r\n"
         for header_name, header_value in self.headers:
             headers += f"{header_name}: {header_value}\r\n".encode()
+            # log
 
         sock.sendall(headers + b"\r\n")
         if content_length > 0:
             try:
                 sock.sendfile(self.body)
+                # log
             except:
+                # log
                 sock.sendfile(self.body) # TODO may raise BrokenPipe

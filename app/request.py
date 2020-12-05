@@ -67,8 +67,10 @@ class Request(typing.NamedTuple):
             raise ValueError("Request line error.")
 
         try:
+            # log
             method, path, _ = request_line.split(" ")
         except ValueError:
+            # log
             raise ValueError(f"Malformed request line {request_line!r}.")
 
         headers = Headers()
@@ -78,6 +80,7 @@ class Request(typing.NamedTuple):
                 line = next(lines)
             except StopIteration as e:
                 # StopIteration.value contains the return value of the generator.
+                # log
                 buff = e.value
                 break
 
@@ -85,9 +88,11 @@ class Request(typing.NamedTuple):
             headers.add(name, value.lstrip())
             if not sep and not value:
                 # wrong format
+                # log
                 raise ValueError(f"Malformed header line {line!r}.")
         
         body = BodyReader(sock, buff=buff)
+        # log
         return cls(method=method.upper(), path=path, headers=headers, body=body)
 
 def iter_lines(sock: socket.socket, bufsize: int = 16_384):

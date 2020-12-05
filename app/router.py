@@ -1,4 +1,5 @@
 import re
+import functools
 from collections import OrderedDict, defaultdict
 
 class Router:
@@ -21,13 +22,15 @@ class Router:
         route_re = re.compile(f"^{route_template}$")
         self.routes_by_method[method][name] = route_re, handler
         self.names.add(name)
+        # log
         
     def lookup(self, method, path):
         for route_re, handler in self.routes_by_method[method].values():
             match = route_re.match(path)
             if match is not None:
                 params = match.groupdict()
-                import functools
+                # log
                 return functools.partial(handler, **params)
+        # log
         return None
 

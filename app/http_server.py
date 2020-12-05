@@ -9,12 +9,13 @@ import threading
 
 from request import Request
 from response import Response
+from log import with_log, log
 
 def serve_static(server_root):
-    """[summary]
+    """serve http static content
 
     Args:
-        path ([type]): [description]
+        server_root (str): http static path
     """
     def handler(request):
         path = request.path
@@ -22,7 +23,9 @@ def serve_static(server_root):
             path = '/index.html'
 
         abspath = os.path.normpath(os.path.join(server_root, path.lstrip("/")))
+        
         if not abspath.startswith(server_root):
+            log.info(f"[404 Not Found] url error, [{server_root}]")
             return Response("404 Not Found", content="Not Found")
 
         try:
@@ -39,10 +42,12 @@ def serve_static(server_root):
             response.headers.add("content-type", content_type)
             return response
         except FileNotFoundError:
+            log.error(f"[404 Not Found] there is not exist the path [{abspaths}]")
             return Response("404 Not Found", content="Not Found")
     
     return handler
 
+@with_log
 class HTTPWorker(threading.Thread):
     def __init__(self, connection_queue, handlers):
         super().__init__(daemon=True)
@@ -55,15 +60,15 @@ class HTTPWorker(threading.Thread):
         while self.running:
             try:
                 client_sock, client_addr = self.connection_queue.get(timeout=1)
-                # 打印一下信息，当前线程号，线程状态（只有一种），socket信息，client地址
             except Empty:
+                # log
                 continue
             
             try:
-                print(threading.get_ident(), client_addr)
                 self.handle_client(client_sock, client_addr)
+                self.log.info("tid: [{}], client address: [{}]".format(threading.get_ident(), client_addr))
             except Exception as e:
-                print(f"Unhandled error: {e}")
+                self.log.error(f"Unhandled error: {e}")
                 continue
             finally:
                 self.connection_queue.task_done()
@@ -93,6 +98,7 @@ class HTTPWorker(threading.Thread):
             if request.method != "GET":
                 response = Response("405 Method Not Allowed", content="Method Not Allowed")
                 response.send(client_sock)
+                self.log.error(f"[405 Method Not Allowed] {request.method}")
                 return
             
 
@@ -103,15 +109,19 @@ class HTTPWorker(threading.Thread):
                         request = request._replace(path=request.path[len(path_prefix):])
                         response = handler(request) # logic of user defined
                         response.send(client_sock)
+                        self.log.error(f"handler: [{handler}]")
                     except Exception as e:
                         response = Response(status="500 Internal Server Error", content="Internal Error")
                         response.send(client_sock)
+                        self.log.error(f"[500 Internal Server Error] [{e}]")
                     finally:
                         break
             else:
                 response = Response(status="404 Not Found", content="Not Found")
                 response.send(client_sock)
-            
+                log.info(f"[404 Not Found] there is not exist the path [{abspaths}]")
+
+@with_log   
 class HTTPServer:
     def __init__(self, host="127.0.0.1", port=9000, worker_count=16):
         self.host = host
@@ -126,7 +136,8 @@ class HTTPServer:
         prefixes are tested in the order that they are added so the
         first match "wins".
         """
-        self.handlers.append((path_prefix, handler)) # 注册 route和功能，后面怎么注册route和static file？
+        self.handlers.append((path_prefix, handler))
+        self.log.info("mounted a request handler, path: [{path_prefix}]")
         
     def server_forever(self):
         workers = []
@@ -139,11 +150,12 @@ class HTTPServer:
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_sock.bind((self.host, self.port))
             server_sock.listen(0)
-            print(f"Listening on {self.host}:{self.port}...")
+            self.log.info(f"Listening on {self.host}:{self.port}...")
             while True:
                 try:
                     self.connection_queue.put(server_sock.accept())
                 except KeyboardInterrupt:
+                    self.log.exception(f"[KeyboardInterrupt] server has been stopped")
                     break
 
         for worker in workers:
@@ -168,12 +180,20 @@ def wrap_auth(handler):
     def auth_handler(request):
         authorization = request.headers.get("authorization", "")
         if authorization.startswith("Bearer ") and authorization[len("Bearer "):] == "opensesame":
+            # log
             return handler(request)
+        # log
         return Response(status="403 Forbidden", content="Forbidden!")
+    # log
     return auth_handler
 
 server = HTTPServer()
-server.mount("/test", wrap_auth(app))
-server.mount("/static", serve_static('www')) # 不能直接注册，或者说，我希望能够将'www'传进去
-server.server_forever()
 
+# http://localhost:9000/test/
+# GET /test HTTP/1.1
+# authorization: Bearer opensesame
+server.mount("/test", wrap_auth(app)) 
+
+# http://localhost:9000/static/
+server.mount("/static", serve_static('www'))
+server.server_forever()
