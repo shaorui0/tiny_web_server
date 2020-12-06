@@ -17,8 +17,15 @@ class Application:
             method = "GET",
             name = None,
     ):
+        """add a pair(name-path-method, handler) to router
+
+        Args:
+            path (str): path
+            method (str, optional): method. Defaults to "GET".
+            name (str, optional): name. Defaults to None.
+        """
         def decorator(handler):
-            self.add_router(path, handler, method, name)
+            self.add_router(path, handler, method, name) 
             return handler
         return decorator
     
