@@ -2,7 +2,7 @@ import io
 import os
 import socket
 
-from headers import Headers
+from .headers import Headers
 
 class Response:
     """An HTTP response.
@@ -25,7 +25,7 @@ class Response:
         ):
         self.status = status.encode()
         self.headers = headers or Headers()
-
+        
         if content:
             self.body = io.BytesIO(content.encode(encoding))
         elif body is None:

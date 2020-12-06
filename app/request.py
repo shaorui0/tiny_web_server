@@ -4,7 +4,7 @@ import typing
 
 from collections import defaultdict
 
-from headers import Headers
+from .headers import Headers
 
 class BodyReader(io.IOBase):
     """
