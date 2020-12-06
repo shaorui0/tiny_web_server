@@ -109,7 +109,6 @@ class HTTPWorker(threading.Thread):
                         request = request._replace(path=request.path[len(path_prefix):])
                         response = handler(request) # logic of user defined
                         response.send(client_sock)
-                        self.log.error(f"handler: [{handler}]")
                     except Exception as e:
                         response = Response(status="500 Internal Server Error", content="Internal Error")
                         response.send(client_sock)
@@ -187,13 +186,3 @@ def wrap_auth(handler):
     # log
     return auth_handler
 
-server = HTTPServer()
-
-# http://localhost:9000/test/
-# GET /test HTTP/1.1
-# authorization: Bearer opensesame
-server.mount("/test", wrap_auth(app)) 
-
-# http://localhost:9000/static/
-server.mount("/static", serve_static('www'))
-server.server_forever()

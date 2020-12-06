@@ -1,6 +1,6 @@
-from .router import Router
-from .request import Request
-from .response import Response
+from router import Router
+from request import Request
+from response import Response
 
 class Application:
     def __init__(self):

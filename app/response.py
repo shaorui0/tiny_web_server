@@ -2,7 +2,7 @@ import io
 import os
 import socket
 
-from .headers import Headers
+from headers import Headers
 
 class Response:
     """An HTTP response.
