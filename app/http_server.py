@@ -84,16 +84,23 @@ class HTTPWorker(threading.Thread):
 
             # Force clients to send their request bodies on every
             # request rather than making the handlers deal with this.
+            print(request.headers._headers)
+            if "100-continue" in request.headers.get("expect", ""):
+                response = Response(status="100 Continue")
+                response.send(client_sock)
             
-            # if "100-continue" in request.headers.get("expect", ""):
-            #     response = Response(status="100 Continue")
-            #     response.send(client_sock)
-            
-            # POST
-            # if content_length:
-            #     body = request.body.read(content_length)
-            #     print("Request body", body)
-            
+            # TODO POST
+            try:
+                content_length = int(request.headers.get("content-length", "0"))
+            except ValueError:
+                content_length = 0
+            if content_length:
+                body = request.body.read(content_length)
+                print("Request body", body)
+                response = Response("405 Method Not Allowed", content="Method Not Allowed")
+                response.send(client_sock)
+                return
+
             # GET
             if request.method != "GET":
                 response = Response("405 Method Not Allowed", content="Method Not Allowed")
@@ -101,13 +108,11 @@ class HTTPWorker(threading.Thread):
                 self.log.error(f"[405 Method Not Allowed] {request.method}")
                 return
             
-
             for path_prefix, handler in self.handlers: # TODO dict
                 if request.path.startswith(path_prefix):
-
                     try:
                         request = request._replace(path=request.path[len(path_prefix):])
-                        response = handler(request) # logic of user defined
+                        response = handler(request) # business logic
                         response.send(client_sock)
                     except Exception as e:
                         response = Response(status="500 Internal Server Error", content="Internal Error")
@@ -118,7 +123,7 @@ class HTTPWorker(threading.Thread):
             else:
                 response = Response(status="404 Not Found", content="Not Found")
                 response.send(client_sock)
-                log.info(f"[404 Not Found] there is not exist the path [{abspaths}]")
+                log.error(f"[404 Not Found] there is not exist the path [{abspaths}]")
 
 @with_log   
 class HTTPServer:
